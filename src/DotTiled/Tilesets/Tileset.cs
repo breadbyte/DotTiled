@@ -275,4 +275,22 @@ public class Tileset : HasPropertiesBase
       Height = TileHeight
     };
   }
+
+  public void AddTile(Tile tile)
+  {
+    TileCount++;
+
+    // Forcibly set the tile's ID to the current TileCount
+    tile.ID = new Optional<uint>(Convert.ToUInt32(TileCount));
+    Tiles.Add(tile);
+
+    if (!Image.HasValue) {
+      // Ensure that we have the highest width and height for the tileset for image collection tilesets
+      if (tile.Width > TileWidth) TileWidth = tile.Width;
+      if (tile.Height > TileHeight) TileHeight = tile.Height;
+    }
+
+    // Ensure that TileCount and Tiles are consistent
+    if (TileCount != Tiles.Count) throw new InvalidOperationException("TileCount does not match the number of tiles in the Tiles list.");
+  }
 }
