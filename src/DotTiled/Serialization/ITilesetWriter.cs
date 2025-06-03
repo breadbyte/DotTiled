@@ -1,16 +1,16 @@
 ﻿using System;
-using System.IO;
+using System.Xml;
 
 namespace DotTiled.Serialization;
 
 /// <summary>
-/// Interface for writing a tileset to a stream.
+/// Interface for writing a tileset to an XmlWriter.
 /// </summary>
 public interface ITilesetWriter : IDisposable
 {
   /// <summary>
-  /// Writes a tileset to a <see cref="Stream">Stream</see>.
+  /// Writes a tileset to an <see cref="XmlWriter">XmlWriter.</see>.
   /// </summary>
-  /// <returns>The stream containing the serialized tileset.</returns>
-  Stream WriteTileset(Tileset tileset);
+  /// <returns>true if the tileset has been written successfully.</returns>
+  bool WriteTileset(in XmlWriter writer, in Tileset tileset);
 }
