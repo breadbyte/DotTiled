@@ -1,3 +1,6 @@
+using System;
+using SkiaSharp;
+
 namespace DotTiled;
 
 /// <summary>
@@ -55,4 +58,38 @@ public class Image
   /// The image height in pixels, used for tile index correction when the image changes.
   /// </summary>
   public Optional<int> Height { get; set; } = Optional.Empty;
+
+  public Image() { }
+
+  /// <summary>
+  /// Loads an image from a specified file path.
+  /// </summary>
+  /// <param name="source">The specified file path.</param>
+  /// <exception cref="ArgumentException">An invalid argument has been passed to the function.</exception>
+  /// <exception cref="NotSupportedException">Tiled does not support the image file provided.</exception>
+  public Image(string source) {
+    if (string.IsNullOrEmpty(source)) {
+      throw new ArgumentException("Source cannot be null or empty.", nameof(source));
+    }
+    if (!System.IO.File.Exists(source)) {
+      throw new ArgumentException("Source file does not exist.", nameof(source));
+    }
+
+    Source = source;
+
+    // Load the image using SkiaSharp.
+    using var image = SKImage.FromEncodedData(source) ?? throw new ArgumentException("Could not load image from source. Valid images files are PNG, GIF, JPG, and BMP.", nameof(source));
+    Width = image.Width;
+    Height = image.Height;
+
+    // Determine the image format using SKCodec.
+    using var codec = SKCodec.Create(image.EncodedData);
+    Format = codec.EncodedFormat switch {
+      SKEncodedImageFormat.Png => ImageFormat.Png,
+      SKEncodedImageFormat.Gif => ImageFormat.Gif,
+      SKEncodedImageFormat.Jpeg => ImageFormat.Jpg,
+      SKEncodedImageFormat.Bmp => ImageFormat.Bmp,
+      _ => throw new NotSupportedException("Unsupported image format.")
+    };
+  }
 }
