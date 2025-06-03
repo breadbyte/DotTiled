@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace DotTiled;
@@ -11,7 +12,7 @@ public class Tile : HasPropertiesBase
   /// <summary>
   /// The local tile ID within its tileset.
   /// </summary>
-  public required uint ID { get; set; }
+  public Optional<uint> ID { get; set; } = new();
 
   /// <summary>
   /// The class of the tile. Is inherited by tile objects
@@ -65,4 +66,66 @@ public class Tile : HasPropertiesBase
   /// The animation frames for this tile.
   /// </summary>
   public List<Frame> Animation { get; set; } = [];
+
+  /// <summary>
+  /// Default constructor.
+  /// </summary>
+  public Tile() { }
+
+  /// <summary>
+  /// Creates a new Tile from an image.
+  /// </summary>
+  /// <param name="image">The image representing the tile.</param>
+  public Tile(Image image)
+  {
+    if (!image.Width.HasValue || !image.Height.HasValue)
+      throw new ArgumentException("Image must have a defined width and height.", nameof(image));
+
+    Image = image;
+    Width = image.Width.Value;
+    Height = image.Height.Value;
+  }
+
+  public void SetAnimation(Tile[] tiles, int frameDuration = 100)
+  {
+    if (tiles == null || tiles.Length == 0)
+      throw new ArgumentException("Tiles array cannot be null or empty.", nameof(tiles));
+
+    Animation.Clear();
+    foreach (var tile in tiles)
+    {
+      if (tile.ID.HasValue)
+      {
+        Animation.Add(new Frame
+        {
+          TileID = tile.ID.Value,
+          Duration = frameDuration
+        });
+      }
+      else
+      {
+        throw new ArgumentException("Tile ID must be defined for animation frames.", nameof(tiles));
+      }
+    }
+  }
+
+  public void SetAnimation((Tile tile, int duration)[] tilesWithDurations)
+  {
+    Animation.Clear();
+    foreach (var (tile, duration) in tilesWithDurations)
+    {
+      if (tile.ID.HasValue)
+      {
+        Animation.Add(new Frame
+        {
+          TileID = tile.ID.Value,
+          Duration = duration
+        });
+      }
+      else
+      {
+        throw new ArgumentException("Tile ID must be defined for animation frames.", nameof(tilesWithDurations));
+      }
+    }
+  }
 }
