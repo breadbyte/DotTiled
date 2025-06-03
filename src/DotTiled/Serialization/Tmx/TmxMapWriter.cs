@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Xml;
 
 namespace DotTiled.Serialization.Tmx
@@ -37,23 +39,75 @@ namespace DotTiled.Serialization.Tmx
       writer.WriteAttributeString("tilewidth", map.TileWidth.ToString(CultureInfo.InvariantCulture));
       writer.WriteAttributeString("tileheight", map.TileHeight.ToString(CultureInfo.InvariantCulture));
       writer.WriteAttributeString("infinite", map.Infinite ? "1" : "0");
+
+      if (map.BackgroundColor.ToString() != "#00000000")
+      {
+        // Need to manually convert the color to hex format, because TiledColor returns ARGB, but backgroundcolor is RGB.
+        var color = map.BackgroundColor;
+        writer.WriteAttributeString("backgroundcolor", $"#{color.R:X2}{color.G:X2}{color.B:X2}");
+      }
+
       writer.WriteAttributeString("nextLayerId", map.NextLayerID.ToString(CultureInfo.InvariantCulture));
       writer.WriteAttributeString("nextObjectId", map.NextObjectID.ToString(CultureInfo.InvariantCulture));
 
+      if (map.Properties.Count != 0)
+      {
+        writer.WriteStartElement("properties");
+        foreach (var property in map.Properties)
+        {
+          writer.WriteStartElement("property");
+          writer.WriteAttributeString("name", property.Name);
+
+          // string properties somehow don't have a type attribute, so we skip it
+          if (property.Type != PropertyType.String)
+            writer.WriteAttributeString("type", property.Type.ToString());
+
+          switch (property.Type)
+          {
+            case PropertyType.String:
+              // todo: WriteAttributeString is escaped. We don't want that
+              writer.WriteAttributeString("value", (property as StringProperty).Value);
+              break;
+            case PropertyType.Int:
+              writer.WriteAttributeString("value",
+                (property as IntProperty).Value.ToString(CultureInfo.InvariantCulture));
+              break;
+            case PropertyType.Float:
+              writer.WriteAttributeString("value",
+                (property as FloatProperty).Value.ToString(CultureInfo.InvariantCulture));
+              break;
+            case PropertyType.Bool:
+              writer.WriteAttributeString("value", (property as BoolProperty).Value.ToString());
+              break;
+            case PropertyType.Color:
+              if (!(property as ColorProperty).Value.HasValue)
+                writer.WriteAttributeString("value", string.Empty);
+              else
+                writer.WriteAttributeString("value", (property as ColorProperty).Value.Value.ToString());
+              break;
+            case PropertyType.File:
+              writer.WriteAttributeString("value", (property as FileProperty).Value);
+              break;
+            case PropertyType.Object:
+              writer.WriteAttributeString("value",
+                (property as ObjectProperty).Value.ToString(CultureInfo.InvariantCulture));
+              break;
+            case PropertyType.Class:
+            case PropertyType.Enum:
+              throw new NotImplementedException();
+            default:
+              throw new NotSupportedException($"Property type {property.Type} is not supported.");
+          }
+
+          writer.WriteEndElement(); // property
+        }
+
+        writer.WriteEndElement(); // properties
+      }
+
       foreach (var tileset in map.Tilesets)
       {
-        writer.WriteStartElement("tileset");
-
-        // External tileset, so it's straightforward to write.
-        if (tileset.Source.HasValue)
-        {
-          writer.WriteAttributeString("firstgid", tileset.FirstGID.Value.ToString(CultureInfo.InvariantCulture));
-          writer.WriteAttributeString("source", tileset.Source.Value);
-        }
-        else
-        {
           TsxTilesetWriter.WriteTileset(writer, tileset);
-        }
       }
 
       foreach (var layer in map.Layers)
@@ -77,7 +131,71 @@ namespace DotTiled.Serialization.Tmx
               writer.WriteAttributeString("compression", tileLayer.Data.Value.Compression.Value.ToString().ToLowerInvariant());
             }
 
-            writer.WriteString(tileLayer.Data.Value.ToString());
+            switch (tileLayer.Data.Value.Encoding.Value)
+            {
+              case DataEncoding.Base64:
+                MemoryStream compressionStream;
+                if (!tileLayer.Data.Value.Compression.HasValue) {
+                  using var bw = new BinaryWriter(compressionStream = new MemoryStream());
+                  foreach (var gid in tileLayer.Data.Value.GlobalTileIDs.Value) {
+                    bw.Write(gid);
+                  }
+                  bw.Flush();
+                  compressionStream.Flush();
+                  writer.WriteBase64(compressionStream.ToArray(), 0, (int)compressionStream.Length);
+                  break;
+                }
+
+                // Todo: Decompression returns wrong data.
+                switch (tileLayer.Data.Value.Compression.Value)
+                {
+                  case DataCompression.GZip:
+                    {
+                      using var rawStream = new MemoryStream();
+                      using var bw = new BinaryWriter(rawStream);
+                      foreach (var gid in tileLayer.Data.Value.GlobalTileIDs.Value)
+                        bw.Write(gid);
+                      bw.Flush();
+                      compressionStream = new MemoryStream();
+                      compressionStream.Flush();
+                      using var gzipStream = new System.IO.Compression.GZipStream(compressionStream, System.IO.Compression.CompressionMode.Compress, false);
+                      gzipStream.Write(rawStream.ToArray(), 0, (int)rawStream.Length);
+                      gzipStream.Flush();
+                      compressionStream.Flush();
+                      writer.WriteString(Convert.ToBase64String(compressionStream.ToArray()));
+                    }
+                    break;
+                  case DataCompression.ZLib:
+                    {
+                      using var rawStream = new MemoryStream();
+                      using var bw = new BinaryWriter(rawStream);
+                      foreach (var gid in tileLayer.Data.Value.GlobalTileIDs.Value)
+                        bw.Write(gid);
+                      bw.Flush();
+                      compressionStream = new MemoryStream();
+                      compressionStream.Flush();
+                      using var gzipStream = new System.IO.Compression.ZLibStream(compressionStream, System.IO.Compression.CompressionMode.Compress, false);
+                      gzipStream.Write(rawStream.ToArray(), 0, (int)rawStream.Length);
+                      gzipStream.Flush();
+                      compressionStream.Flush();
+                      writer.WriteString(Convert.ToBase64String(compressionStream.ToArray()));
+                    }
+                    break;
+                  case DataCompression.ZStd:
+                    // Not implemented for the whole library yet
+                    throw new NotImplementedException();
+                    break;
+                  default:
+                    break;
+                }
+                break;
+              case DataEncoding.Csv:
+                writer.WriteString(string.Join(",", tileLayer.Data.Value.GlobalTileIDs.Value.Select(gid => gid.ToString(CultureInfo.InvariantCulture))));
+                break;
+              default:
+                throw new NotImplementedException($"Encoding {tileLayer.Data.Value.Encoding.Value} is not implemented.");
+                break;
+            }
             writer.WriteEndElement(); // data
           }
 
@@ -114,7 +232,7 @@ namespace DotTiled.Serialization.Tmx
         }
       }
 
-      writer.WriteEndElement();
+      writer.WriteEndElement(); // map
       return true;
     }
   }

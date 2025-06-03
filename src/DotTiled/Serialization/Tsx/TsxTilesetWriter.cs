@@ -17,21 +17,41 @@ namespace DotTiled.Serialization.Tmx
     public static bool WriteTileset(in XmlWriter writer, in Tileset tileset)
     {
       writer.WriteStartElement("tileset");
-      writer.WriteAttributeString("version", tileset.Version.ToString());
-      writer.WriteAttributeString("tiledversion", tileset.TiledVersion.ToString());
+
+      if (tileset.Source.HasValue) {
+        writer.WriteAttributeString("firstgid", tileset.FirstGID.Value.ToString(CultureInfo.InvariantCulture));
+        writer.WriteAttributeString("source", tileset.Source.Value);
+        writer.WriteEndElement();
+        return true; // Early exit for external tilesets
+      }
+
+      writer.WriteAttributeString("firstgid", tileset.FirstGID.Value.ToString(CultureInfo.InvariantCulture));
       writer.WriteAttributeString("name", tileset.Name);
       writer.WriteAttributeString("tilewidth", tileset.TileWidth.ToString(CultureInfo.InvariantCulture));
       writer.WriteAttributeString("tileheight", tileset.TileHeight.ToString(CultureInfo.InvariantCulture));
       writer.WriteAttributeString("tilecount", tileset.TileCount.ToString(CultureInfo.InvariantCulture));
       writer.WriteAttributeString("columns", tileset.Columns.ToString(CultureInfo.InvariantCulture));
-      writer.WriteStartElement("grid");
-      writer.WriteAttributeString("orientation", tileset.Grid.Value.Orientation.ToString());
-      writer.WriteAttributeString("width", tileset.Grid.Value.Width.ToString(CultureInfo.InvariantCulture));
-      writer.WriteAttributeString("height", tileset.Grid.Value.Height.ToString(CultureInfo.InvariantCulture));
-      writer.WriteEndElement(); // grid
+
+      if (tileset.Grid.HasValue) {
+        writer.WriteStartElement("grid");
+        writer.WriteAttributeString("orientation", tileset.Grid.Value.Orientation.ToString());
+        writer.WriteAttributeString("width", tileset.Grid.Value.Width.ToString(CultureInfo.InvariantCulture));
+        writer.WriteAttributeString("height", tileset.Grid.Value.Height.ToString(CultureInfo.InvariantCulture));
+        writer.WriteEndElement(); // grid
+      }
 
       foreach (var tile in tileset.Tiles)
       {
+        // todo: embedded tileset doesn't work
+        if (tile.Image.HasValue) {
+          writer.WriteStartElement("image");
+          writer.WriteAttributeString("source", tile.Image.Value.Source.Value);
+          writer.WriteAttributeString("width", tile.Image.Value.Width.Value.ToString(CultureInfo.InvariantCulture));
+          writer.WriteAttributeString("height", tile.Image.Value.Height.Value.ToString(CultureInfo.InvariantCulture));
+          writer.WriteEndElement();
+          continue;
+        }
+
         writer.WriteStartElement("tile");
         writer.WriteAttributeString("id", tile.ID.ToString());
         if (tile.Image != null)
