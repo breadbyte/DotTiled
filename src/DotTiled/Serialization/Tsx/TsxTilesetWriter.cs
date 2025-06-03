@@ -4,11 +4,18 @@ using System.Xml;
 
 namespace DotTiled.Serialization.Tmx
 {
-  public class TsxTilesetWriter : ITilesetWriter
+  public static class TsxTilesetWriter
   {
-    public bool WriteTileset(in XmlWriter writer, in Tileset tileset)
+    public static bool WriteTilesetFile(in XmlWriter writer, in Tileset tileset)
     {
       writer.WriteStartDocument();
+      WriteTileset(writer, tileset);
+      writer.WriteEndDocument();
+      return true;
+    }
+
+    public static bool WriteTileset(in XmlWriter writer, in Tileset tileset)
+    {
       writer.WriteStartElement("tileset");
       writer.WriteAttributeString("version", tileset.Version.ToString());
       writer.WriteAttributeString("tiledversion", tileset.TiledVersion.ToString());
@@ -62,10 +69,7 @@ namespace DotTiled.Serialization.Tmx
       }
 
       writer.WriteEndElement(); // tileset
-      writer.WriteEndDocument();
       return true;
     }
-
-    public void Dispose() { }
   }
 }
