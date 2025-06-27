@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Xml;
 
 namespace DotTiled.Serialization.Tmx
@@ -131,6 +130,7 @@ namespace DotTiled.Serialization.Tmx
               writer.WriteAttributeString("compression", tileLayer.Data.Value.Compression.Value.ToString().ToLowerInvariant());
             }
 
+            writer.WriteString("\n"); // Prettify
             switch (tileLayer.Data.Value.Encoding.Value)
             {
               case DataEncoding.Base64:
@@ -190,12 +190,22 @@ namespace DotTiled.Serialization.Tmx
                 }
                 break;
               case DataEncoding.Csv:
-                writer.WriteString(string.Join(",", tileLayer.Data.Value.GlobalTileIDs.Value.Select(gid => gid.ToString(CultureInfo.InvariantCulture))));
+                // this, but add new line every width tiles
+                // writer.WriteString(string.Join(",", tileLayer.Data.Value.GlobalTileIDs.Value.Select(gid => gid.ToString(CultureInfo.InvariantCulture))));
+                for (int i = 0; i < tileLayer.Data.Value.GlobalTileIDs.Value.Length; i++)
+                {
+                  if (i > 0 && i % tileLayer.Width == 0)
+                    writer.WriteString("\n");
+                  writer.WriteString(tileLayer.Data.Value.GlobalTileIDs.Value[i].ToString(CultureInfo.InvariantCulture));
+                  if (i < tileLayer.Data.Value.GlobalTileIDs.Value.Length - 1)
+                    writer.WriteString(",");
+                }
                 break;
               default:
                 throw new NotImplementedException($"Encoding {tileLayer.Data.Value.Encoding.Value} is not implemented.");
                 break;
             }
+            writer.WriteString("\n"); // Prettify
             writer.WriteEndElement(); // data
           }
 
